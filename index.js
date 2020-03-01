@@ -1,22 +1,7 @@
 const axios = require('axios')
 const tough = require('tough-cookie')
 const WebSocket = require('ws')
-const axiosCookieJarSupport = require('axios-cookiejar-support').default;
-
-axiosCookieJarSupport(axios)
-const cookieJar = new tough.CookieJar()
-
-async function request(url = '', method = 'get', options = {}) {
-  const req = axios({
-    ...options,
-    url,
-    method,
-    jar: cookieJar,
-    withCredentials: true
-  })
-  const res = await req
-  return res
-}
+const { Worker } = require('worker_threads')
 
 function printProgress(payload) {
   process.stdout.clearLine()
@@ -24,100 +9,17 @@ function printProgress(payload) {
   process.stdout.write(payload)
 }
 
-function getCamUserWSPath(payload) {
-  return new Promise((resolve, reject) => {
-    let events = []
-
-    const ws = new WebSocket('wss://node2-ord.camsoda.com:3000', {
-      origin: 'https://www.camsoda.com',
-      headers: {
-        Cookie: `www_cs_session=${payload.config.SESSION}`,
-        Pragma: 'no-cache',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0'
-      }
-    })
-
-    ws.on('message', (message) => {
-      const parsedPayload = JSON.parse(message)
-      if (parsedPayload[0] === 'v3.templates' && events.length === 0) {
-        events = parsedPayload[1].events
-        return
-      }
-
-      const event = events[parsedPayload[0]]
-
-      if (event === 'v3.client.version') {
-        ws.send(JSON.stringify([
-          'v3.authorize',
-          {
-            token: payload.info.USER_INFO.user.node_token,
-            version: '1'
-          }
-        ]))
-      } else if (event === 'v3.authorize.success') {
-        ws.send(JSON.stringify([
-          events.indexOf('v3.lobby.discover'),
-          {
-            room: payload.config.camUser
-          }
-        ]))
-      } else if (event === 'v3.lobby.discovered') {
-        ws.close()
-        resolve(parsedPayload[1].url)
-      }
-
-      return
-    })
-
-    ws.on('error', (err) => {
-      reject(err)
-    })
-  })
-}
-
-function connectToCamUser(payload) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(payload.url, {
-      origin: 'https://www.camsoda.com',
-      headers: {
-        Cookie: `www_cs_session=${payload.config.SESSION}`,
-        Pragma: 'no-cache',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0'
-      }
-    })
-
-    ws.on('open', () => {
-      resolve(ws)
-    })
-
-    ws.on('error', (err) => {
-      reject(err)
-    })
-  })
-}
-
-async function getViewerInfo(payload) {
-  const initializationRequest = await request(`https://www.camsoda.com/${payload.camUser}`, 'get')
-  const USER_INFO = JSON.parse(initializationRequest.data.match(/CURRENT_USER = ([^\n]+);/im)[1])
-  const API_PRELOAD = JSON.parse(initializationRequest.data.match(/API_PRELOAD = ([^\n]+);/im)[1])
-  const CSRF_TOKEN = initializationRequest.data.match(/\<meta name\="\_token" content\="([a-zA-Z0-9]+)"\>/im)[1]
-  const SESSION = initializationRequest.headers['set-cookie']
-    .filter((cookie) => cookie.indexOf('www_cs_session') !== -1)[0]
-    .match(/www_cs_session\=([^;]+)/im)[1]
-
-  return {
-    USER_INFO,
-    API_PRELOAD,
-    CSRF_TOKEN,
-    SESSION
-  }
-}
-
 function outputHelp() {
   console.log(`
-    Usage: npm run connect {USER ID} {AMOUNT}
+    Usage: npm run connect {USER ID} {BOT_AMOUNT} [{WORKER_THREADS}]
+
+    Default BOT_AMOUNT = 300
+    Default WORKER_THREADS = 1
     
     This screen: npm run help
+
+    Note: It is not recommended to go above 6 threads at the risk of an IP rate limit
+
   `)
 }
 
@@ -131,42 +33,51 @@ async function main() {
 
   const config = {
     camUser: args[0],
-    viewCount: args[1] || 300
+    viewCount: args[1] || 300,
+    threadCount: args[2] || 1
   }
-
-  const wsContainers = []
 
   printProgress('Connected Bots: 0')
 
-  for (let itterator = 0; itterator < config.viewCount; ++itterator) {
-    const info = await getViewerInfo(config)
-    const wsRoom = await getCamUserWSPath({
-      config,
-      info
-    })
-    const camConnection = await connectToCamUser({
-      config,
-      info,
-      url: wsRoom
-    })
-    camConnection.send(JSON.stringify([
-      'v3.authorize',
-      {
-        token: info.USER_INFO.user.node_token,
-        version: '1'
+  let connected = 0
+  const workers = []
+
+  for (let i = 0; i < config.threadCount; ++i) {
+    const worker = new Worker('./worker.js')
+
+    worker.on('message', (message) => {
+      if (message.status === 'loading') {
+        connected = connected + message.incriment
+      } else if (message.status === 'complete') {
+        workers[message.index].working = false
       }
-    ]))
-    wsContainers.push({
-      ws: camConnection,
-      config,
-      info,
-      url: wsRoom
     })
 
-    printProgress(`Connected Bots: ${itterator+1}`)
+    workers.push({
+      worker,
+      working: true
+    })
+
+    worker.postMessage({
+      config,
+      index: i
+    })
   }
 
-  process.stdout.write('\n\n')
+  await new Promise((resolve) => {
+    const timeout = setInterval(() => {
+      if (workers.length > 0) {
+        const workingWorkers = workers.filter((worker) => worker.working === true)
+        if (workingWorkers.length > 0) {
+          printProgress(`Connected Bots: ${connected}`)
+        } else {
+          printProgress(`Connected Bots: ${connected}\n`)
+          clearInterval(timeout)
+          resolve()
+        }
+      }
+    }, 500)
+  })
 
   console.log('All bots connected.  Idle until script closed.')
 
