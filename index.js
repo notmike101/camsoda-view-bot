@@ -18,6 +18,12 @@ async function request(url = '', method = 'get', options = {}) {
   return res
 }
 
+function printProgress(payload) {
+  process.stdout.clearLine()
+  process.stdout.cursorTo(0)
+  process.stdout.write(payload)
+}
+
 function getCamUserWSPath(payload) {
   return new Promise((resolve, reject) => {
     let events = []
@@ -107,8 +113,22 @@ async function getViewerInfo(payload) {
   }
 }
 
+function outputHelp() {
+  console.log(`
+    Usage: npm run connect {USER ID} {AMOUNT}
+    
+    This screen: npm run help
+  `)
+}
+
 async function main() {
   const args = process.argv.slice(2)
+
+  if (args[0] === 'help') {
+    outputHelp()
+    return 0
+  }
+
   const config = {
     camUser: args[0],
     viewCount: args[1] || 300
@@ -116,7 +136,7 @@ async function main() {
 
   const wsContainers = []
 
-  process.stdout.write('Connecting bots')
+  printProgress('Connected Bots: 0')
 
   for (let itterator = 0; itterator < config.viewCount; ++itterator) {
     const info = await getViewerInfo(config)
@@ -143,9 +163,10 @@ async function main() {
       url: wsRoom
     })
 
-    process.stdout.write('.')
+    printProgress(`Connected Bots: ${itterator+1}`)
   }
-  process.stdout.write('\n')
+
+  process.stdout.write('\n\n')
 
   console.log('All bots connected.  Idle until script closed.')
 
