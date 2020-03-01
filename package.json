@@ -1,0 +1,19 @@
+{
+  "name": "cs-ws",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "connect": "node index.js",
+    "test": "node index.js lewdicorndlc 5"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.19.2",
+    "axios-cookiejar-support": "^0.5.1",
+    "tough-cookie": "^3.0.1",
+    "ws": "^7.2.1",
+    "ws-await": "^4.0.0"
+  }
+}
