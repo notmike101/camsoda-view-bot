@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "connect": "node index.js",
-    "test": "node index.js lewdicorndlc 5"
+    "help": "node index.js help"
   },
   "author": "",
   "license": "ISC",
