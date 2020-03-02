@@ -1,6 +1,4 @@
-const axios = require('axios')
-const tough = require('tough-cookie')
-const WebSocket = require('ws')
+const program = require('commander')
 const { Worker } = require('worker_threads')
 
 function printProgress(payload) {
@@ -11,10 +9,10 @@ function printProgress(payload) {
 
 function outputHelp() {
   console.log(`
-    Usage: npm run connect {USER ID} {BOT_AMOUNT} [{WORKER_THREADS}]
+    Usage: npm run connect --camuser {USER ID} [--viewers {TOTAL_VIEWS_PER_WORKER} [--workers {WORKER_COUNT}]]
 
-    Default BOT_AMOUNT = 300
-    Default WORKER_THREADS = 1
+    Default TOTAL_VIEWS_PER_WORKER = 300
+    Default WORKER_COUNT = 1
     
     This screen: npm run help
 
@@ -23,18 +21,27 @@ function outputHelp() {
   `)
 }
 
-async function main() {
-  const args = process.argv.slice(2)
+program
+  .name('npm run connect')
+  .version(process.version || '1.0.0')
+  .requiredOption('-c, --camuser <user>', 'Specify the camsoda user')
+  .option('-v, --viewers <total>', 'The total amount of viewer per worker', 300)
+  .option('-w, --workers <total>', 'The total amount of worker threads', 1)
+  .usage('[-h][--camuser <user> [--viewers <total> [--workers <total>]]]')
 
-  if (args[0] === 'help') {
+async function main() {
+  const args = program.parse(process.argv)
+  const requiredOptionsFilled = args.camuser && args.viewers && args.workers
+
+  if (!requiredOptionsFilled) {
     outputHelp()
     return 0
   }
 
   const config = {
-    camUser: args[0],
-    viewCount: args[1] || 300,
-    threadCount: args[2] || 1
+    camUser: args.camuser,
+    viewCount: parseInt(args.viewers) || 300,
+    threadCount: parseInt(args.workers) || 1
   }
 
   printProgress('Connected Bots: 0')
