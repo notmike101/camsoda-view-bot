@@ -27,7 +27,7 @@ program
   .requiredOption('-c, --camuser <user>', 'Specify the camsoda user')
   .option('-v, --viewers <total>', 'The total amount of viewer per worker', 300)
   .option('-w, --workers <total>', 'The total amount of worker threads', 1)
-  .usage('[-h][--camuser <user> [--viewers <total> [--workers <total>]]]')
+  .usage('-- [-h][--camuser <user> [--viewers <total> [--workers <total>]]]')
 
 async function main() {
   const args = program.parse(process.argv)
