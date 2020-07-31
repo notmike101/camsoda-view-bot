@@ -15,7 +15,7 @@
     "axios-cookiejar-support": "^0.5.1",
     "commander": "^4.1.1",
     "tough-cookie": "^3.0.1",
-    "ws": "^7.2.1",
+    "ws": "^7.2.3",
     "ws-await": "^4.0.0"
   }
 }
